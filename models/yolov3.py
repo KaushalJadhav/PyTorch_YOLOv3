@@ -1,109 +1,11 @@
 import torch
 import torch.nn as nn
-
+from torch.autograd import Variable
 from collections import defaultdict
+
 from models.yolo_layer import YOLOLayer
-
-def add_conv(in_ch, out_ch, ksize, stride):
-    """
-    Add a conv2d / batchnorm / leaky ReLU block.
-    Args:
-        in_ch (int): number of input channels of the convolution layer.
-        out_ch (int): number of output channels of the convolution layer.
-        ksize (int): kernel size of the convolution layer.
-        stride (int): stride of the convolution layer.
-    Returns:
-        stage (Sequential) : Sequential layers composing a convolution block.
-    """
-    stage = nn.Sequential()
-    pad = (ksize - 1) // 2
-    stage.add_module('conv', nn.Conv2d(in_channels=in_ch,
-                                       out_channels=out_ch, kernel_size=ksize, stride=stride,
-                                       padding=pad, bias=False))
-    stage.add_module('batch_norm', nn.BatchNorm2d(out_ch))
-    stage.add_module('leaky', nn.LeakyReLU(0.1))
-    return stage
-
-
-class resblock(nn.Module):
-    """
-    Sequential residual blocks each of which consists of \
-    two convolution layers.
-    Args:
-        ch (int): number of input and output channels.
-        nblocks (int): number of residual blocks.
-        shortcut (bool): if True, residual tensor addition is enabled.
-    """
-    def __init__(self, ch, nblocks=1, shortcut=True):
-
-        super().__init__()
-        self.shortcut = shortcut
-        self.module_list = nn.ModuleList()
-        for i in range(nblocks):
-            resblock_one = nn.ModuleList()
-            resblock_one.append(add_conv(ch, ch//2, 1, 1))
-            resblock_one.append(add_conv(ch//2, ch, 3, 1))
-            self.module_list.append(resblock_one)
-
-    def forward(self, x):
-        for module in self.module_list:
-            h = x
-            for res in module:
-                h = res(h)
-            x = x + h if self.shortcut else h
-        return x
-
-
-def create_yolov3_modules(cfg):
-    """
-    Build yolov3 layer modules.
-    Args:
-        cfg (dict): Configuration file.
-            See YOLOLayer class for details.
-    Returns:
-        mlist (ModuleList): YOLOv3 module list.
-    """
-
-    # DarkNet53
-    mlist = nn.ModuleList()
-    mlist.append(add_conv(in_ch=3, out_ch=32, ksize=3, stride=1))
-    mlist.append(add_conv(in_ch=32, out_ch=64, ksize=3, stride=2))
-    mlist.append(resblock(ch=64))
-    mlist.append(add_conv(in_ch=64, out_ch=128, ksize=3, stride=2))
-    mlist.append(resblock(ch=128, nblocks=2))
-    mlist.append(add_conv(in_ch=128, out_ch=256, ksize=3, stride=2))
-    mlist.append(resblock(ch=256, nblocks=8))    # shortcut 1 from here
-    mlist.append(add_conv(in_ch=256, out_ch=512, ksize=3, stride=2))
-    mlist.append(resblock(ch=512, nblocks=8))    # shortcut 2 from here
-    mlist.append(add_conv(in_ch=512, out_ch=1024, ksize=3, stride=2))
-    mlist.append(resblock(ch=1024, nblocks=4))
-
-    # YOLOv3
-    mlist.append(resblock(ch=1024, nblocks=2, shortcut=False))
-    mlist.append(add_conv(in_ch=1024, out_ch=512, ksize=1, stride=1))
-    # 1st yolo branch
-    mlist.append(add_conv(in_ch=512, out_ch=1024, ksize=3, stride=1))
-    mlist.append(YOLOLayer(cfg, layer_no=0, in_ch=1024))
-
-    mlist.append(add_conv(in_ch=512, out_ch=256, ksize=1, stride=1))
-    mlist.append(nn.Upsample(scale_factor=2, mode='nearest'))
-    mlist.append(add_conv(in_ch=768, out_ch=256, ksize=1, stride=1))
-    mlist.append(add_conv(in_ch=256, out_ch=512, ksize=3, stride=1))
-    mlist.append(resblock(ch=512, nblocks=1, shortcut=False))
-    mlist.append(add_conv(in_ch=512, out_ch=256, ksize=1, stride=1))
-    # 2nd yolo branch
-    mlist.append(add_conv(in_ch=256, out_ch=512, ksize=3, stride=1))
-    mlist.append(YOLOLayer(cfg, layer_no=1, in_ch=512))
-
-    mlist.append(add_conv(in_ch=256, out_ch=128, ksize=1, stride=1))
-    mlist.append(nn.Upsample(scale_factor=2, mode='nearest'))
-    mlist.append(add_conv(in_ch=384, out_ch=128, ksize=1, stride=1))
-    mlist.append(add_conv(in_ch=128, out_ch=256, ksize=3, stride=1))
-    mlist.append(resblock(ch=256, nblocks=2, shortcut=False))
-    mlist.append(YOLOLayer(cfg,layer_no=2, in_ch=256))
-
-    return mlist
-
+from models.resblock import *
+from utils.parse_yolo_weights import parse_yolo_weights
 
 class YOLOv3(nn.Module):
     """
@@ -118,13 +20,63 @@ class YOLOv3(nn.Module):
             cfg (dict): Configuration file used in YOLOLayer.
         """
         super(YOLOv3, self).__init__()
-
-        if cfg['MODEL']['TYPE'].upper() == 'YOLOV3'.upper():
-            self.module_list = create_yolov3_modules(cfg)
+        self.cfg = cfg
+        if self.cfg['MODEL']['TYPE'].upper() == 'YOLOV3'.upper():
+            self.module_list = self.create_yolov3_modules(cfg)
         else:
             raise Exception('Model name {} is not available'.format(cfg['MODEL']['TYPE']))
+        self.parse_weights()
 
-    def forward(self, x, targets=None):
+    def create_yolov3_modules(self,cfg):
+        """
+        Build yolov3 layer modules.
+        Args:
+            cfg (dict): Configuration file.
+            See YOLOLayer class for details.
+        Returns:
+            mlist (ModuleList): YOLOv3 module list.
+        """
+
+        # DarkNet53
+        mlist = nn.ModuleList()
+        mlist.append(add_conv(in_ch=3, out_ch=32, ksize=3, stride=1))
+        mlist.append(add_conv(in_ch=32, out_ch=64, ksize=3, stride=2))
+        mlist.append(resblock(ch=64))
+        mlist.append(add_conv(in_ch=64, out_ch=128, ksize=3, stride=2))
+        mlist.append(resblock(ch=128, nblocks=2))
+        mlist.append(add_conv(in_ch=128, out_ch=256, ksize=3, stride=2))
+        mlist.append(resblock(ch=256, nblocks=8))    # shortcut 1 from here
+        mlist.append(add_conv(in_ch=256, out_ch=512, ksize=3, stride=2))
+        mlist.append(resblock(ch=512, nblocks=8))    # shortcut 2 from here
+        mlist.append(add_conv(in_ch=512, out_ch=1024, ksize=3, stride=2))
+        mlist.append(resblock(ch=1024, nblocks=4))
+
+        # YOLOv3
+        mlist.append(resblock(ch=1024, nblocks=2, shortcut=False))
+        mlist.append(add_conv(in_ch=1024, out_ch=512, ksize=1, stride=1))
+        # 1st yolo branch
+        mlist.append(add_conv(in_ch=512, out_ch=1024, ksize=3, stride=1))
+        mlist.append(YOLOLayer(cfg, layer_no=0, in_ch=1024))
+
+        mlist.append(add_conv(in_ch=512, out_ch=256, ksize=1, stride=1))
+        mlist.append(nn.Upsample(scale_factor=2, mode='nearest'))
+        mlist.append(add_conv(in_ch=768, out_ch=256, ksize=1, stride=1))
+        mlist.append(add_conv(in_ch=256, out_ch=512, ksize=3, stride=1))
+        mlist.append(resblock(ch=512, nblocks=1, shortcut=False))
+        mlist.append(add_conv(in_ch=512, out_ch=256, ksize=1, stride=1))
+        # 2nd yolo branch
+        mlist.append(add_conv(in_ch=256, out_ch=512, ksize=3, stride=1))
+        mlist.append(YOLOLayer(cfg, layer_no=1, in_ch=512))
+
+        mlist.append(add_conv(in_ch=256, out_ch=128, ksize=1, stride=1))
+        mlist.append(nn.Upsample(scale_factor=2, mode='nearest'))
+        mlist.append(add_conv(in_ch=384, out_ch=128, ksize=1, stride=1))
+        mlist.append(add_conv(in_ch=128, out_ch=256, ksize=3, stride=1))
+        mlist.append(resblock(ch=256, nblocks=2, shortcut=False))
+        mlist.append(YOLOLayer(cfg,layer_no=2, in_ch=256))
+        return mlist
+
+    def forward(self,x,targets=None,cuda=True):
         """
         Forward path of YOLOv3.
         Args:
@@ -139,6 +91,10 @@ class YOLOv3(nn.Module):
                 output (torch.Tensor): concatenated detection results.
         """
         train = targets is not None
+        if train:
+            dtype = torch.cuda.FloatTensor if cuda else torch.FloatTensor
+            imgs = Variable(imgs.type(dtype))
+            targets = Variable(targets.type(dtype), requires_grad=False)
         output = []
         self.loss_dict = defaultdict(float)
         route_layers = []
@@ -170,4 +126,28 @@ class YOLOv3(nn.Module):
             return sum(output)
         else:
             return torch.cat(output, 1)
+    
+    def parse_weights(self):
+        weights_path = self.cfg['MODEL']['WEIGHTS_PATH']
+        if weights_path is not None:
+            print("loading darknet weights from ....", weights_path)
+            parse_yolo_weights(self,weights_path)
+    
+    def load_state(self,state):
+        if 'model_state_dict' in state.keys():
+            self.load_state_dict(state['model_state_dict'])
+        else:
+            self.load_state_dict(state)
+    
+    def get_params(self):
+        # set weight decay only on conv.weight
+        params_dict = dict(self.named_parameters())
+        params = []
+        for key, value in params_dict.items():
+            if 'conv.weight' in key:
+                params += [{'params':value, 'weight_decay':decay * batch_size * subdivision}]
+            else:
+                params += [{'params':value, 'weight_decay':0.0}]
+        return params 
+
 

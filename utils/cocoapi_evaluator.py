@@ -27,7 +27,7 @@ class COCOAPIEvaluator():
         """
 
         self.dataset = COCODataset(cfg,mode='val')
-        self.dataloader = torch.utils.data.DataLoader(self.dataset,batch_size=1, shuffle=False, num_workers=0)
+        self.dataloader = torch.utils.data.DataLoader(self.dataset,batch_size=1, shuffle=False,num_workers=0)
         self.confthre = cfg['TEST']['CONFTHRE'] # from darknet
         self.nmsthre = cfg['TEST']['NMSTHRE'] # 0.45 (darknet)
 

@@ -2,77 +2,55 @@ from __future__ import division
 
 from utils.utils import *
 from utils.cocoapi_evaluator import COCOAPIEvaluator
-from utils.parse_yolo_weights import parse_yolo_weights
 from models.yolov3 import *
 from dataset.cocodataset import *
+from utils.misc import *
+from utils.ckpt_utils import *
 
 import os
-import argparse
-import yaml
-import random
+try:
+    import wandb 
+except ModuleNotFoundError:
+    pass
 
 import torch
-from torch.autograd import Variable
 import torch.optim as optim
+from utils.logging import *
 
 
-def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--cfg', type=str, default='config/yolov3_default.cfg',
-                        help='config file. see readme')
-    parser.add_argument('--weights_path', type=str,
-                        default=None, help='darknet weights file')
-    parser.add_argument('--n_cpu', type=int, default=0,
-                        help='number of workers')
-    parser.add_argument('--checkpoint_interval', type=int,
-                        default=1000, help='interval between saving checkpoints')
-    parser.add_argument('--eval_interval', type=int,
-                            default=4000, help='interval between evaluations')
-    parser.add_argument('--checkpoint', type=str,
-                        help='pytorch checkpoint file path')
-    parser.add_argument('--checkpoint_dir', type=str,
-                        default='checkpoints',
-                        help='directory where checkpoint files are saved')
-    parser.add_argument('--use_cuda', type=bool, default=True)
-    parser.add_argument('--debug', action='store_true', default=False,
-                        help='debug mode where only one image is trained')
-    parser.add_argument(
-        '--tfboard', help='tensorboard path for logging', type=str, default=None)
-    return parser.parse_args()
-
-
-def main():
+def main(args):
     """
     YOLOv3 trainer. See README for details.
     """
-    args = parse_args()
-    print("Setting Arguments.. : ", args)
-
-    cuda = torch.cuda.is_available() and args.use_cuda
-    os.makedirs(args.checkpoint_dir, exist_ok=True)
-
+    
     # Parse config settings
-    with open(args.cfg, 'r') as f:
-        cfg = yaml.load(f)
+    cfg = load_cfg(args.cfg)
+    
+    batch_size = cfg['DATA']['BATCHSIZE']
+    subdivision = cfg['DATA']['SUBDIVISION']
+    effective_batch_size = batch_size*subdivision
+    print('effective_batch_size = batch_size * iter_size = %d * %d= %d' %(batch_size, subdivision,effective_batch_size))
+    
+    dataset = COCODataset(cfg,mode='train',debug=cfg['DEBUG'])
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True,num_workers=cfg['NUM_CPUS'])
+    evaluator = COCOAPIEvaluator(cfg)
 
-    print("successfully loaded config file: ", cfg)
-
-    momentum = cfg['TRAIN']['MOMENTUM']
-    decay = cfg['TRAIN']['DECAY']
-    burn_in = cfg['TRAIN']['BURN_IN']
-    iter_size = cfg['TRAIN']['MAXITER']
-    steps = eval(cfg['TRAIN']['STEPS'])
-    batch_size = cfg['TRAIN']['BATCHSIZE']
-    subdivision = cfg['TRAIN']['SUBDIVISION']
-    ignore_thre = cfg['TRAIN']['IGNORETHRE']
-    random_resize = cfg['AUGMENTATION']['RANDRESIZE']
-    base_lr = cfg['TRAIN']['LR'] / batch_size / subdivision
-
-    print('effective_batch_size = batch_size * iter_size = %d * %d' %
-          (batch_size, subdivision))
+    # Initiate model
+    model = YOLOv3(cfg)
+    
+    # optimizer setup
+    optimizer = optim.SGD(
+                           model.get_params(), 
+                           lr=cfg['SOLVER']['LR'] / batch_size / subdivision, 
+                           momentum=cfg['SOLVER']['MOMENTUM'],
+                           dampening=0, 
+                           weight_decay=cfg['SOLVER']['DECAY']*effective_batch_size
+                         )
 
     # Learning rate setup
     def burnin_schedule(i):
+        burn_in = cfg['SOLVER']['BURN_IN']
+        steps = eval(cfg['SOLVER']['STEPS'])
         if i < burn_in:
             factor = pow(i / burn_in, 4)
         elif i < steps[0]:
@@ -82,82 +60,28 @@ def main():
         else:
             factor = 0.01
         return factor
+    
+    scheduler = optim.lr_scheduler.LambdaLR(optimizer, burnin_schedule)
 
-    # Initiate model
-    model = YOLOv3(cfg['MODEL'], ignore_thre=ignore_thre)
+    if cfg["LOGGING"]["TYPE"].upper() = "WANDB":
+        init_wandb(cfg)
+    if args.wandb_checkpoint is not None:
+        wandb_checkpoint = wandb.restore(os.path.join(ckpt_dir,args.wandb_checkpoint)
+        ckpt_path = wandb_checkpoint.name
+    else:
+        ckpt_path = args.checkpoint
+    model,optimizer,scheduler,iter_state = load_ckpt(ckpt_path,model,optimizer,scheduler)
 
-    if args.weights_path:
-        print("loading darknet weights....", args.weights_path)
-        parse_yolo_weights(model, args.weights_path)
-    elif args.checkpoint:
-        print("loading pytorch ckpt...", args.checkpoint)
-        state = torch.load(args.checkpoint)
-        if 'model_state_dict' in state.keys():
-            model.load_state_dict(state['model_state_dict'])
-        else:
-            model.load_state_dict(state)
-
-    if cuda:
-        print("using cuda") 
+    cuda = iscuda(cfg)
+    if cuda: 
         model = model.cuda()
-
-    if args.tfboard:
-        print("using tfboard")
-        from tensorboardX import SummaryWriter
-        tblogger = SummaryWriter(args.tfboard)
 
     model.train()
 
-    imgsize = cfg['TRAIN']['IMGSIZE']
-    dataset = COCODataset(model_type=cfg['MODEL']['TYPE'],
-                  data_dir='COCO/',
-                  img_size=imgsize,
-                  augmentation=cfg['AUGMENTATION'],
-                  debug=args.debug)
-
-    dataloader = torch.utils.data.DataLoader(
-        dataset, batch_size=batch_size, shuffle=True, num_workers=args.n_cpu)
     dataiterator = iter(dataloader)
-
-    evaluator = COCOAPIEvaluator(model_type=cfg['MODEL']['TYPE'],
-                    data_dir='COCO/',
-                    img_size=cfg['TEST']['IMGSIZE'],
-                    confthre=cfg['TEST']['CONFTHRE'],
-                    nmsthre=cfg['TEST']['NMSTHRE'])
-
-    dtype = torch.cuda.FloatTensor if cuda else torch.FloatTensor
-
-    # optimizer setup
-    # set weight decay only on conv.weight
-    params_dict = dict(model.named_parameters())
-    params = []
-    for key, value in params_dict.items():
-        if 'conv.weight' in key:
-            params += [{'params':value, 'weight_decay':decay * batch_size * subdivision}]
-        else:
-            params += [{'params':value, 'weight_decay':0.0}]
-    optimizer = optim.SGD(params, lr=base_lr, momentum=momentum,
-                          dampening=0, weight_decay=decay * batch_size * subdivision)
-
-    iter_state = 0
-
-    if args.checkpoint:
-        if 'optimizer_state_dict' in state.keys():
-            optimizer.load_state_dict(state['optimizer_state_dict'])
-            iter_state = state['iter'] + 1
-
-    scheduler = optim.lr_scheduler.LambdaLR(optimizer, burnin_schedule)
-
+    iter_size = cfg['SOLVER']['MAXITER']
     # start training loop
     for iter_i in range(iter_state, iter_size + 1):
-
-        # COCO evaluation
-        if iter_i % args.eval_interval == 0 and iter_i > 0:
-            ap50_95, ap50 = evaluator.evaluate(model)
-            model.train()
-            if args.tfboard:
-                tblogger.add_scalar('val/COCOAP50', ap50, iter_i)
-                tblogger.add_scalar('val/COCOAP50_95', ap50_95, iter_i)
 
         # subdivision loop
         optimizer.zero_grad()
@@ -167,9 +91,9 @@ def main():
             except StopIteration:
                 dataiterator = iter(dataloader)
                 imgs, targets, _, _ = next(dataiterator)  # load a batch
-            imgs = Variable(imgs.type(dtype))
-            targets = Variable(targets.type(dtype), requires_grad=False)
-            loss = model(imgs, targets)
+            loss = model(imgs, targets,cuda=cuda)
+            if cfg["LOGGING"]["TYPE"].upper() = "WANDB":
+                wandb.watch(model,criterion=loss,log="all")
             loss.backward()
 
         optimizer.step()
@@ -179,35 +103,51 @@ def main():
             # logging
             current_lr = scheduler.get_lr()[0] * batch_size * subdivision
             print('[Iter %d/%d] [lr %f] '
-                  '[Losses: xy %f, wh %f, conf %f, cls %f, total %f, imgsize %d]'
+                  '[Losses: xy %f, wh %f, conf %f, cls %f, l2 %f]'
                   % (iter_i, iter_size, current_lr,
                      model.loss_dict['xy'], model.loss_dict['wh'],
                      model.loss_dict['conf'], model.loss_dict['cls'], 
-                     model.loss_dict['l2'], imgsize),
+                     model.loss_dict['l2']),
                   flush=True)
 
-            if args.tfboard:
-                tblogger.add_scalar('train/total_loss', model.loss_dict['l2'], iter_i)
+            if cfg["LOGGING"]["TYPE"].upper() = "WANDB":
+                train_loss = {
+                                'XY loss': model.loss_dict['xy']
+                                'WH loss' : model.loss_dict['wh']
+                                'Conf loss' : model.loss_dict['conf']
+                                'Cls loss' : model.loss_dict['cls']
+                             }
+                wandb.log({
+                            'Sub_Loss': train_loss,
+                            'L2_Loss' : model.loss_dict['l2']
+                            'Total Loss' : loss.item() 
+                            'Learning Rate': current_lr,
+                          }, step=iter_i)
 
             # random resizing
-            if random_resize:
-                imgsize = (random.randint(0, 9) % 10 + 10) * 32
-                dataset.img_shape = (imgsize, imgsize)
-                dataset.img_size = imgsize
-                dataloader = torch.utils.data.DataLoader(
-                    dataset, batch_size=batch_size, shuffle=True, num_workers=args.n_cpu)
+            if cfg['AUGMENTATION']['RANDRESIZE']:
+                dataset.random_resize()
+                dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True,num_workers=cfg['NUM_CPUS'])
                 dataiterator = iter(dataloader)
-
+        
+        # COCO evaluation
+        if iter_i % cfg["TEST"]["EVAL_INTERVAL"] == 0 and iter_i > 0:
+            ap50_95,ap50 = evaluator.evaluate(model)
+            model.train()
+            if cfg["LOGGING"]["TYPE"].upper() = "WANDB":
+                wandb.log({
+                            'val/COCOAP50': ap50,
+                            'val/COCOAP50_95' : ap50_95
+                          }, step=iter_i)
         # save checkpoint
-        if iter_i > 0 and (iter_i % args.checkpoint_interval == 0):
-            torch.save({'iter': iter_i,
-                        'model_state_dict': model.state_dict(),
-                        'optimizer_state_dict': optimizer.state_dict(),
-                        },
-                        os.path.join(args.checkpoint_dir, "snapshot"+str(iter_i)+".ckpt"))
-    if args.tfboard:
-        tblogger.close()
+        if iter_i > 0 and (iter_i % cfg["SAVING"]["CKPT_INTERVAL"] == 0):
+            save_ckpt(cfg["SAVING"]["CKPT_DIR"],iter_i,model,optimizer,scheduler)
+            if cfg["LOGGING"]["TYPE"].upper() = "WANDB":
+                wandb.save(os.path.join(ckpt_dir, "YOLO"+str(it)+".ckpt"))
+    if cfg["LOGGING"]["TYPE"].upper() = "WANDB":
+        wandb.finish()
 
 
 if __name__ == '__main__':
-    main()
+    args = parse_args()
+    main(args)

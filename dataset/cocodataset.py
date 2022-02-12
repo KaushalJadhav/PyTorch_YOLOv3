@@ -1,6 +1,6 @@
 import os
 import numpy as np
-
+import random
 import torch
 from torch.utils.data import Dataset
 import cv2
@@ -34,7 +34,7 @@ class COCODataset(Dataset):
     """
     COCO dataset class.
     """
-    def __init__(self, cfg,mode='train',min_size=1, debug=False):
+    def __init__(self,cfg,mode='train',min_size=1,debug=False):
         """
         COCO dataset initialization. Annotation data are read into memory by COCO API.
         Args:
@@ -89,13 +89,9 @@ class COCODataset(Dataset):
     def preprocess(self,img):
         img, info_img = preprocess(img, self.img_size, jitter=self.augmentation['JITTER'],
                                    random_placing=self.augmentation['RANDOM_PLACING'])
-
         if self.augmentation['RANDOM_DISTORT']:
             img = random_distort(img,self.augmentation['HUE'],self.augmentation['SATURATION'],self.augmentation['EXPOSURE'])
-
         img = np.transpose(img / 255., (2, 0, 1))
-
-        
         if self.lrflip:
             img = np.flip(img, axis=2).copy()
         return img, info_img
@@ -115,7 +111,6 @@ class COCODataset(Dataset):
             padded_labels[range(len(labels))[:self.max_labels]] = labels[:self.max_labels]
         padded_labels = torch.from_numpy(padded_labels)
         return padded_labels 
-    
 
     def __getitem__(self, index):
         """
@@ -156,3 +151,8 @@ class COCODataset(Dataset):
         padded_labels = self.get_labels(annotations,info_img)
         
         return img, padded_labels, info_img, id_
+    
+    def random_resize(self):
+        imgsize = (random.randint(0, 9) % 10 + 10) * 32
+        self.img_size = imgsize
+        print("New img_size set to ",imgsize)
