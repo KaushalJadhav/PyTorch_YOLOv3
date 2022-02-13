@@ -45,7 +45,7 @@ class COCODataset(Dataset):
             debug (bool): if True, only one data id is selected from the dataset
         """
         self.cfg = cfg 
-        self.data_dir = self.cfg['DATADIR']
+        self.data_dir = self.cfg['DATA']['DATADIR']
         self.model_type = self.cfg['MODEL']['TYPE']
 
         if mode == 'train':
