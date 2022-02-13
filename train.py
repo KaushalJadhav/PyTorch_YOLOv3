@@ -100,7 +100,7 @@ def main(args):
 
         if iter_i % 10 == 0:
             # logging
-            current_lr = scheduler.get_lr()[0] * batch_size * subdivision
+            current_lr = scheduler.get_last_lr()[0] * batch_size * subdivision
             print('[Iter %d/%d] [lr %f] '
                   '[Losses: xy %f, wh %f, conf %f, cls %f, l2 %f]'
                   % (iter_i, iter_size, current_lr,
