@@ -85,7 +85,7 @@ class YOLOLayer(nn.Module):
         best_n_mask = ((best_n_all == self.anch_mask[0]) | (best_n_all == self.anch_mask[1]) | (best_n_all == self.anch_mask[2]))
         return best_n_all,best_n_mask
     
-    def get_best_iou(self,pred):
+    def get_best_iou(self,pred,truth_box):
         pred_ious = bboxes_iou(pred.contiguous().view(-1, 4), truth_box, xyxy=False)
         pred_best_iou, _ = pred_ious.max(dim=1)
         pred_best_iou = (pred_best_iou > self.ignore_thre)
@@ -183,7 +183,7 @@ class YOLOLayer(nn.Module):
             best_n_all,best_n_mask = self.get_best_mask(truth_box)
             best_n = best_n_all % 3
 
-            pred_best_iou = self.get_best_iou(pred[b])
+            pred_best_iou = self.get_best_iou(pred[b],truth_box)
             # set mask to zero (ignore) if pred matches truth
             obj_mask[b] = 1 - pred_best_iou
 
