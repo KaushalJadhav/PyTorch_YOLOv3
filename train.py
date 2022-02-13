@@ -66,7 +66,7 @@ def main(args):
     if cfg["LOGGING"]["TYPE"].upper() == "WANDB":
         init_wandb(cfg)
     if args.wandb_checkpoint is not None:
-        wandb_checkpoint = wandb.restore(os.path.join(ckpt_dir,args.wandb_checkpoint)
+        wandb_checkpoint = wandb.restore(os.path.join(ckpt_dir,args.wandb_checkpoint))
         ckpt_path = wandb_checkpoint.name
     else:
         ckpt_path = args.checkpoint
