@@ -130,14 +130,14 @@ def main(args):
                 dataiterator = iter(dataloader)
         
         # COCO evaluation
-        if iter_i % cfg["TEST"]["EVAL_INTERVAL"] == 0 and iter_i > 0:
-            ap50_95,ap50 = evaluator.evaluate(model)
-            model.train()
-            if cfg["LOGGING"]["TYPE"].upper() == "WANDB":
-                wandb.log({
-                            'val/COCOAP50': ap50,
-                            'val/COCOAP50_95' : ap50_95
-                          }, step=iter_i)
+        # if iter_i % cfg["TEST"]["EVAL_INTERVAL"] == 0 and iter_i > 0:
+        #     ap50_95,ap50 = evaluator.evaluate(model)
+        #     model.train()
+        #     if cfg["LOGGING"]["TYPE"].upper() == "WANDB":
+        #         wandb.log({
+        #                     'val/COCOAP50': ap50,
+        #                     'val/COCOAP50_95' : ap50_95
+        #                   }, step=iter_i)
         # save checkpoint
         if iter_i > 0 and (iter_i % cfg["SAVING"]["CKPT_INTERVAL"] == 0):
             save_ckpt(cfg["SAVING"]["CKPT_DIR"],iter_i,model,optimizer,scheduler)
