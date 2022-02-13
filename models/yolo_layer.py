@@ -99,8 +99,8 @@ class YOLOLayer(nn.Module):
         return x
     
     def get_losses(self,output,target,obj_mask,tgt_mask):
-        output= self.process(self,output,obj_mask,tgt_mask)
-        target= self.process(self,target,obj_mask,tgt_mask)
+        output= self.process(output,obj_mask,tgt_mask)
+        target= self.process(target,obj_mask,tgt_mask)
         wbce = self.bce_loss(weight=tgt_scale*tgt_scale)  # weighted BCEloss
         bce = self.bce_loss()
         loss_xy = wbce(output[..., :2], target[..., :2])
