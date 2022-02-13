@@ -93,7 +93,7 @@ class YOLOv3(nn.Module):
         train = targets is not None
         if train:
             dtype = torch.cuda.FloatTensor if cuda else torch.FloatTensor
-            imgs = Variable(imgs.type(dtype))
+            x = Variable(x.type(dtype))
             targets = Variable(targets.type(dtype), requires_grad=False)
         output = []
         self.loss_dict = defaultdict(float)
