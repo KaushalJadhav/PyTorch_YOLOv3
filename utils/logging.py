@@ -10,7 +10,7 @@ def init_wandb(cfg) -> None:
         cfg   (Dict) : Configuration file
     """
     wandb.init(
-        name=cfg["LOGGING"]["NAME"]
+        name=cfg["LOGGING"]["NAME"],
         config=cfg,
         project=cfg["LOGGING"]["PROJECT"]cfg.WANDB.PROJECT,
         resume="allow",
