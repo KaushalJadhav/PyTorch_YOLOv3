@@ -89,7 +89,7 @@ class YOLOLayer(nn.Module):
         pred_ious = bboxes_iou(pred.contiguous().view(-1, 4), truth_box, xyxy=False)
         pred_best_iou, _ = pred_ious.max(dim=1)
         pred_best_iou = (pred_best_iou > self.ignore_thre)
-        pred_best_iou = pred_best_iou.view(pred[b].shape[:3])
+        pred_best_iou = pred_best_iou.view(pred.shape[:3])
         return pred_best_iou
     
     def process(self,x,obj_mask,tgt_mask):
