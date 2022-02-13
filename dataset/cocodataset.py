@@ -54,7 +54,7 @@ class COCODataset(Dataset):
             self.img_size = self.cfg['TRAIN']['IMGSIZE']
             self.augmentation = self.cfg['AUGMENTATION']
 
-        else if mode == 'val':
+        elif mode == 'val':
             self.json_file = 'instances_val2017.json'
             self.name = 'val2017'
             self.img_size = self.cfg['TEST']['IMGSIZE']
