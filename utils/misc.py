@@ -19,7 +19,7 @@ def iscuda(cfg):
 
 def load_cfg(config_path):
     with open(config_path, 'r') as f:
-        cfg = yaml.load(f)
+        cfg = yaml.safe_load(f)
     print("successfully loaded config file: ", cfg)
     return cfg 
         
