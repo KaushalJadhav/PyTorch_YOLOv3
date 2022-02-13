@@ -92,15 +92,15 @@ class YOLOLayer(nn.Module):
         pred_best_iou = pred_best_iou.view(pred.shape[:3])
         return pred_best_iou
     
-    def process(self,x,obj_mask,tgt_mask):
+    def process(self,x,obj_mask,tgt_mask,tgt_scale):
         x[..., 4] *= obj_mask
         x[..., np.r_[0:4, 5:self.n_ch]] *= tgt_mask
         x[..., 2:4] *= tgt_scale
         return x
     
-    def get_losses(self,output,target,obj_mask,tgt_mask):
-        output= self.process(output,obj_mask,tgt_mask)
-        target= self.process(target,obj_mask,tgt_mask)
+    def get_losses(self,output,target,obj_mask,tgt_mask,tgt_scale):
+        output= self.process(output,obj_mask,tgt_mask,tgt_scale)
+        target= self.process(target,obj_mask,tgt_mask,tgt_scale)
         wbce = self.bce_loss(weight=tgt_scale*tgt_scale)  # weighted BCEloss
         bce = self.bce_loss()
         loss_xy = wbce(output[..., :2], target[..., :2])
@@ -205,4 +205,4 @@ class YOLOLayer(nn.Module):
                     tgt_scale[b, a, j, i, :] = torch.sqrt(2 - truth_w_all[b, ti] * truth_h_all[b, ti] / fsize / fsize)
 
         # loss calculation
-        return self.get_losses(output,target,obj_mask,tgt_mask)
+        return self.get_losses(output,target,obj_mask,tgt_mask,tgt_scale)
