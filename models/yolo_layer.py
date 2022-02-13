@@ -185,7 +185,7 @@ class YOLOLayer(nn.Module):
 
             pred_best_iou = self.get_best_iou(pred[b],truth_box)
             # set mask to zero (ignore) if pred matches truth
-            obj_mask[b] = 1 - pred_best_iou
+            obj_mask[b] = 1 - pred_best_iou.type(self.dtype)
 
             if sum(best_n_mask) == 0:
                 continue
