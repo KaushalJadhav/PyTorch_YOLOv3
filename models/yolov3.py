@@ -141,6 +141,9 @@ class YOLOv3(nn.Module):
     
     def get_params(self):
         # set weight decay only on conv.weight
+        batch_size = self.cfg['DATA']['BATCHSIZE']
+        subdivision = self.cfg['DATA']['SUBDIVISION']
+        decay = self.cfg['SOLVER']['DECAY']
         params_dict = dict(self.named_parameters())
         params = []
         for key, value in params_dict.items():
