@@ -1,11 +1,11 @@
 from __future__ import division
 
-from utils.utils import *
+from models.yolov3 import YOLOv3
+from dataset.cocodataset import COCODataset
+from utils.misc import parse_args,iscuda,load_cfg
+from utils.ckpt_utils import load_ckpt,save_ckpt
+from utils.logging import init_wandb
 from utils.cocoapi_evaluator import COCOAPIEvaluator
-from models.yolov3 import *
-from dataset.cocodataset import *
-from utils.misc import *
-from utils.ckpt_utils import *
 
 import os
 try:
@@ -15,7 +15,6 @@ except ModuleNotFoundError:
 
 import torch
 import torch.optim as optim
-from utils.logging import *
 
 
 def main(args):
@@ -112,15 +111,15 @@ def main(args):
 
             if cfg["LOGGING"]["TYPE"].upper() == "WANDB":
                 train_loss = {
-                                'XY loss': model.loss_dict['xy']
-                                'WH loss' : model.loss_dict['wh']
-                                'Conf loss' : model.loss_dict['conf']
-                                'Cls loss' : model.loss_dict['cls']
+                                'XY loss': model.loss_dict['xy'],
+                                'WH loss' : model.loss_dict['wh'],
+                                'Conf loss' : model.loss_dict['conf'],
+                                'Cls loss' : model.loss_dict['cls'],
                              }
                 wandb.log({
                             'Sub_Loss': train_loss,
-                            'L2_Loss' : model.loss_dict['l2']
-                            'Total Loss' : loss.item() 
+                            'L2_Loss' : model.loss_dict['l2'],
+                            'Total Loss' : loss.item(), 
                             'Learning Rate': current_lr,
                           }, step=iter_i)
 
