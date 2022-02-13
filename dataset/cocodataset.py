@@ -61,7 +61,7 @@ class COCODataset(Dataset):
             self.augmentation = {'LRFLIP': False, 'JITTER': 0, 'RANDOM_PLACING': False,
                         'HUE': 0, 'SATURATION': 0, 'EXPOSURE': 0, 'RANDOM_DISTORT': False}
         
-        self.coco = COCO(self.data_dir+'annotations/'+self.json_file)
+        self.coco = COCO(os.path.join(self.data_dir,'annotations/'+self.json_file))
         self.ids = self.coco.getImgIds()
         if debug:
             self.ids = self.ids[1:2]
