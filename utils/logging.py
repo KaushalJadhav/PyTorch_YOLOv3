@@ -12,7 +12,7 @@ def init_wandb(cfg) -> None:
     wandb.init(
         name=cfg["LOGGING"]["NAME"],
         config=cfg,
-        project=cfg["LOGGING"]["PROJECT"]cfg.WANDB.PROJECT,
+        project=cfg["LOGGING"]["PROJECT"],
         resume="allow",
         id=cfg["LOGGING"]["ID"]
     )
