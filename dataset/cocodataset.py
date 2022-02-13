@@ -71,7 +71,7 @@ class COCODataset(Dataset):
         self.max_labels = 50
         self.min_size = min_size
 
-        self.img_file = os.path.join(self.data_dir, self.name,'{:012}' + '.jpg')
+        self.img_file = os.path.join(self.data_dir,self.name,self.name,'{:012}' + '.jpg')
 
         self.lrflip = False
         if self.augmentation['LRFLIP'] and np.random.rand() > 0.5 == True:
@@ -140,7 +140,7 @@ class COCODataset(Dataset):
         img = cv2.imread(self.img_file.format(id_))
 
         # if self.json_file == 'instances_val5k.json' and img is None:
-        #     img_file = os.path.join(self.data_dir, 'train2017',
+        #     img_file = os.path.join(self.data_dir, 'train2017','train2017',
         #                             '{:012}'.format(id_) + '.jpg')
         #     img = cv2.imread(img_file)
 
