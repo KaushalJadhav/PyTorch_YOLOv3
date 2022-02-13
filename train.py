@@ -63,7 +63,7 @@ def main(args):
     
     scheduler = optim.lr_scheduler.LambdaLR(optimizer, burnin_schedule)
 
-    if cfg["LOGGING"]["TYPE"].upper() = "WANDB":
+    if cfg["LOGGING"]["TYPE"].upper() == "WANDB":
         init_wandb(cfg)
     if args.wandb_checkpoint is not None:
         wandb_checkpoint = wandb.restore(os.path.join(ckpt_dir,args.wandb_checkpoint)
@@ -92,7 +92,7 @@ def main(args):
                 dataiterator = iter(dataloader)
                 imgs, targets, _, _ = next(dataiterator)  # load a batch
             loss = model(imgs, targets,cuda=cuda)
-            if cfg["LOGGING"]["TYPE"].upper() = "WANDB":
+            if cfg["LOGGING"]["TYPE"].upper() == "WANDB":
                 wandb.watch(model,criterion=loss,log="all")
             loss.backward()
 
@@ -110,7 +110,7 @@ def main(args):
                      model.loss_dict['l2']),
                   flush=True)
 
-            if cfg["LOGGING"]["TYPE"].upper() = "WANDB":
+            if cfg["LOGGING"]["TYPE"].upper() == "WANDB":
                 train_loss = {
                                 'XY loss': model.loss_dict['xy']
                                 'WH loss' : model.loss_dict['wh']
@@ -134,7 +134,7 @@ def main(args):
         if iter_i % cfg["TEST"]["EVAL_INTERVAL"] == 0 and iter_i > 0:
             ap50_95,ap50 = evaluator.evaluate(model)
             model.train()
-            if cfg["LOGGING"]["TYPE"].upper() = "WANDB":
+            if cfg["LOGGING"]["TYPE"].upper() == "WANDB":
                 wandb.log({
                             'val/COCOAP50': ap50,
                             'val/COCOAP50_95' : ap50_95
@@ -142,9 +142,9 @@ def main(args):
         # save checkpoint
         if iter_i > 0 and (iter_i % cfg["SAVING"]["CKPT_INTERVAL"] == 0):
             save_ckpt(cfg["SAVING"]["CKPT_DIR"],iter_i,model,optimizer,scheduler)
-            if cfg["LOGGING"]["TYPE"].upper() = "WANDB":
+            if cfg["LOGGING"]["TYPE"].upper() == "WANDB":
                 wandb.save(os.path.join(ckpt_dir, "YOLO"+str(it)+".ckpt"))
-    if cfg["LOGGING"]["TYPE"].upper() = "WANDB":
+    if cfg["LOGGING"]["TYPE"].upper() == "WANDB":
         wandb.finish()
 
 
