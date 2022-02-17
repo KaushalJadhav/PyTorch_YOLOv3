@@ -101,14 +101,14 @@ def main(args):
         if iter_i % 10 == 0:
             # logging
             current_lr = scheduler.get_last_lr()[0] * batch_size * subdivision
-            print('[Iter %d/%d] [lr %f] '
-                  '[Losses: xy %f, wh %f, conf %f, cls %f, l2 %f]'
-                  % (iter_i, iter_size, current_lr,
-                     model.loss_dict['xy'], model.loss_dict['wh'],
-                     model.loss_dict['conf'], model.loss_dict['cls'], 
-                     model.loss_dict['l2']),
-                  flush=True)
-
+            # print('[Iter %d/%d] [lr %f] '
+            #       '[Losses: xy %f, wh %f, conf %f, cls %f, l2 %f]'
+            #       % (iter_i, iter_size, current_lr,
+            #          model.loss_dict['xy'], model.loss_dict['wh'],
+            #          model.loss_dict['conf'], model.loss_dict['cls'], 
+            #          model.loss_dict['l2']),
+            #       flush=True)
+            print('[Iter %d/%d] [lr %f][Loss %f] '% (iter_i, iter_size, current_lr,loss.item()),flush=True)
             if cfg["LOGGING"]["TYPE"].upper() == "WANDB":
                 train_loss = {
                                 'XY loss': model.loss_dict['xy'],

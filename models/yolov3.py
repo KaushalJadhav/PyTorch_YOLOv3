@@ -102,9 +102,10 @@ class YOLOv3(nn.Module):
             # yolo layers
             if i in [14, 22, 28]:
                 if train:
-                    x, *loss_dict = module(x, targets)
-                    for name, loss in zip(['xy', 'wh', 'conf', 'cls', 'l2'] , loss_dict):
-                        self.loss_dict[name] += loss
+                    # x, *loss_dict = module(x, targets)
+                    # for name, loss in zip(['xy', 'wh', 'conf', 'cls', 'l2'] , loss_dict):
+                    #     self.loss_dict[name] += loss
+                    x = module(x, targets)
                 else:
                     x = module(x)
                 output.append(x)
