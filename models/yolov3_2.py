@@ -28,7 +28,7 @@ class YOLOv3(nn.Module):
         self.parse_weights()
         # self.loss_dict = defaultdict(float)
 
-    def add_conv(in_ch, out_ch, ksize, stride):
+    def add_conv(self,in_ch, out_ch, ksize, stride):
         """
         Add a conv2d / batchnorm / leaky ReLU block.
         Args:
