@@ -4,7 +4,7 @@ from torch.autograd import Variable
 from collections import defaultdict
 
 from models.yolo_layer_2 import YOLOLayer
-from models.resblock import *
+from models.resblock import resblock
 from utils.parse_yolo_weights import parse_yolo_weights
 
 class YOLOv3(nn.Module):
@@ -28,6 +28,26 @@ class YOLOv3(nn.Module):
         self.parse_weights()
         # self.loss_dict = defaultdict(float)
 
+    def add_conv(in_ch, out_ch, ksize, stride):
+        """
+        Add a conv2d / batchnorm / leaky ReLU block.
+        Args:
+            in_ch (int): number of input channels of the convolution layer.
+            out_ch (int): number of output channels of the convolution layer.
+            ksize (int): kernel size of the convolution layer.
+            stride (int): stride of the convolution layer.
+        Returns:
+            stage (Sequential) : Sequential layers composing a convolution block.
+        """
+        stage = nn.Sequential()
+        pad = (ksize - 1) // 2
+        stage.add_module('conv', nn.Conv2d(in_channels=in_ch,
+                                           out_channels=out_ch, kernel_size=ksize, stride=stride,
+                                           padding=pad, bias=False))
+        stage.add_module('batch_norm', nn.BatchNorm2d(out_ch))
+        stage.add_module('leaky', nn.LeakyReLU(0.1))
+        return stage
+
     def create_yolov3_modules(self,cfg):
         """
         Build yolov3 layer modules.
@@ -40,41 +60,41 @@ class YOLOv3(nn.Module):
 
         # DarkNet53
         mlist = nn.ModuleList()
-        mlist.append(add_conv(in_ch=3, out_ch=32, ksize=3, stride=1))
-        mlist.append(add_conv(in_ch=32, out_ch=64, ksize=3, stride=2))
-        mlist.append(resblock(ch=64))
-        mlist.append(add_conv(in_ch=64, out_ch=128, ksize=3, stride=2))
-        mlist.append(resblock(ch=128, nblocks=2))
-        mlist.append(add_conv(in_ch=128, out_ch=256, ksize=3, stride=2))
-        mlist.append(resblock(ch=256, nblocks=8))    # shortcut 1 from here
-        mlist.append(add_conv(in_ch=256, out_ch=512, ksize=3, stride=2))
-        mlist.append(resblock(ch=512, nblocks=8))    # shortcut 2 from here
-        mlist.append(add_conv(in_ch=512, out_ch=1024, ksize=3, stride=2))
-        mlist.append(resblock(ch=1024, nblocks=4))
+        mlist.append(self.add_conv(in_ch=3, out_ch=32, ksize=3, stride=1)) #0
+        mlist.append(self.add_conv(in_ch=32, out_ch=64, ksize=3, stride=2)) #1
+        mlist.append(resblock(ch=64)) #2
+        mlist.append(self.add_conv(in_ch=64, out_ch=128, ksize=3, stride=2)) #3
+        mlist.append(resblock(ch=128, nblocks=2)) #4
+        mlist.append(self.add_conv(in_ch=128, out_ch=256, ksize=3, stride=2)) #5
+        mlist.append(resblock(ch=256, nblocks=8))    # shortcut 1 from here #6
+        mlist.append(self.add_conv(in_ch=256, out_ch=512, ksize=3, stride=2)) #7
+        mlist.append(resblock(ch=512, nblocks=8))    # shortcut 2 from here #8
+        mlist.append(self.add_conv(in_ch=512, out_ch=1024, ksize=3, stride=2)) #9
+        mlist.append(resblock(ch=1024, nblocks=4)) #10
 
         # YOLOv3
-        mlist.append(resblock(ch=1024, nblocks=2, shortcut=False))
-        mlist.append(add_conv(in_ch=1024, out_ch=512, ksize=1, stride=1))
+        mlist.append(resblock(ch=1024, nblocks=2, shortcut=False)) #11
+        mlist.append(self.add_conv(in_ch=1024, out_ch=512, ksize=1, stride=1)) #12
         # 1st yolo branch
-        mlist.append(add_conv(in_ch=512, out_ch=1024, ksize=3, stride=1))
-        mlist.append(YOLOLayer(cfg, layer_no=0, in_ch=1024))
+        mlist.append(self.add_conv(in_ch=512, out_ch=1024, ksize=3, stride=1)) #13
+        mlist.append(YOLOLayer(cfg, layer_no=0, in_ch=1024)) #14
 
-        mlist.append(add_conv(in_ch=512, out_ch=256, ksize=1, stride=1))
-        mlist.append(nn.Upsample(scale_factor=2, mode='nearest'))
-        mlist.append(add_conv(in_ch=768, out_ch=256, ksize=1, stride=1))
-        mlist.append(add_conv(in_ch=256, out_ch=512, ksize=3, stride=1))
-        mlist.append(resblock(ch=512, nblocks=1, shortcut=False))
-        mlist.append(add_conv(in_ch=512, out_ch=256, ksize=1, stride=1))
+        mlist.append(self.add_conv(in_ch=512, out_ch=256, ksize=1, stride=1)) #15
+        mlist.append(nn.Upsample(scale_factor=2, mode='nearest')) #16
+        mlist.append(self.add_conv(in_ch=768, out_ch=256, ksize=1, stride=1)) #17
+        mlist.append(self.add_conv(in_ch=256, out_ch=512, ksize=3, stride=1)) #18
+        mlist.append(resblock(ch=512, nblocks=1, shortcut=False)) #19
+        mlist.append(self.add_conv(in_ch=512, out_ch=256, ksize=1, stride=1)) #20
         # 2nd yolo branch
-        mlist.append(add_conv(in_ch=256, out_ch=512, ksize=3, stride=1))
-        mlist.append(YOLOLayer(cfg, layer_no=1, in_ch=512))
+        mlist.append(self.add_conv(in_ch=256, out_ch=512, ksize=3, stride=1)) #21
+        mlist.append(YOLOLayer(cfg, layer_no=1, in_ch=512)) #22
 
-        mlist.append(add_conv(in_ch=256, out_ch=128, ksize=1, stride=1))
-        mlist.append(nn.Upsample(scale_factor=2, mode='nearest'))
-        mlist.append(add_conv(in_ch=384, out_ch=128, ksize=1, stride=1))
-        mlist.append(add_conv(in_ch=128, out_ch=256, ksize=3, stride=1))
-        mlist.append(resblock(ch=256, nblocks=2, shortcut=False))
-        mlist.append(YOLOLayer(cfg,layer_no=2, in_ch=256))
+        mlist.append(self.add_conv(in_ch=256, out_ch=128, ksize=1, stride=1)) #23
+        mlist.append(nn.Upsample(scale_factor=2, mode='nearest')) #24
+        mlist.append(self.add_conv(in_ch=384, out_ch=128, ksize=1, stride=1)) #25
+        mlist.append(self.add_conv(in_ch=128, out_ch=256, ksize=3, stride=1)) #26
+        mlist.append(resblock(ch=256, nblocks=2, shortcut=False)) #27
+        mlist.append(YOLOLayer(cfg,layer_no=2, in_ch=256)) #28
         return mlist
 
     def forward(self,x,targets=None,cuda=True):

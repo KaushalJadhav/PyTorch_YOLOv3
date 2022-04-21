@@ -30,8 +30,9 @@ class YOLOLayer(nn.Module):
         self.n_ch = 5 + self.n_classes
         self.ignore_thre = self.cfg['TRAIN']['IGNORETHRE']
         self.batchsize = self.cfg['DATA']['BATCHSIZE']
-        
         self.dtype=torch.FloatTensor
+        self.Lambda = 0.5
+
         self.anchors = self.cfg['MODEL']['ANCHORS']
         self.anch_mask = self.cfg['MODEL']['ANCH_MASK'][layer_no]
         self.n_anchors = len(self.anch_mask)
@@ -40,11 +41,13 @@ class YOLOLayer(nn.Module):
         self.masked_anchors = [self.all_anchors_grid[i]
                                for i in self.anch_mask]
         
+        self.ref_anchors = np.zeros((len(self.all_anchors_grid), 4))
+        self.ref_anchors[:, 2:] = np.array(self.all_anchors_grid)
+        self.ref_anchors = torch.FloatTensor(self.ref_anchors)
+
         self.conv = nn.Conv2d(in_channels=in_ch,
                               out_channels=self.n_anchors * (self.n_ch),
                               kernel_size=1, stride=1, padding=0)
-        
-        self.Lambda = 0.5
     
     def bce_loss(self,weight=None):
         return nn.BCELoss(weight=weight,size_average=False)
@@ -77,10 +80,7 @@ class YOLOLayer(nn.Module):
         return output,fsize
     
     def get_best_mask(self,truth_box):
-        ref_anchors = np.zeros((len(self.all_anchors_grid), 4))
-        ref_anchors[:, 2:] = np.array(self.all_anchors_grid)
-        ref_anchors = torch.FloatTensor(ref_anchors)
-        anchor_ious_all = bboxes_iou(truth_box.cpu(),ref_anchors)
+        anchor_ious_all = bboxes_iou(truth_box.cpu(),self.ref_anchors)
         best_n_all = np.argmax(anchor_ious_all, axis=1)
         best_n_mask = ((best_n_all == self.anch_mask[0]) | (best_n_all == self.anch_mask[1]) | (best_n_all == self.anch_mask[2]))
         return best_n_all,best_n_mask
@@ -99,14 +99,12 @@ class YOLOLayer(nn.Module):
         return x
     
     def get_losses(self,output,target,obj_mask,tgt_mask,tgt_scale):
-        output= self.process(output,obj_mask,tgt_mask,tgt_scale)
-        target= self.process(target,obj_mask,tgt_mask,tgt_scale)
         wbce = self.bce_loss(weight=tgt_scale*tgt_scale)  # weighted BCEloss
         bce = self.bce_loss()
-        loss_xy = wbce(output[..., :2], target[..., :2])
-        loss_wh = self.l2_loss(output[..., 2:4], target[..., 2:4])*self.Lambda
+        loss_xy = obj_mask * tgt_scale * torch.sum(tf.square(target[..., :2]-output[..., :2]))
+        loss_wh = obj_mask * tgt_scale * torch.sum(tf.square(target[...,2:4]-output[...,2:4]))
         loss_obj = bce(output[..., 4], target[..., 4])
-        loss_cls = bce(output[..., 5:], target[..., 5:])
+        loss_cls = obj_mask * bce(output[..., 5:], target[..., 5:])
         loss_l2 = self.l2_loss(output, target)
         loss = loss_xy + loss_wh + loss_obj + loss_cls
         # return loss, loss_xy, loss_wh, loss_obj, loss_cls, loss_l2
@@ -200,7 +198,8 @@ class YOLOLayer(nn.Module):
                     target[b, a, j, i, 3] = torch.log(truth_h_all[b, ti] / torch.Tensor(self.masked_anchors)[best_n[ti], 1] + 1e-16)
                     target[b, a, j, i, 4] = 1
                     target[b, a, j, i, 5 + labels[b, ti,0].to(torch.int16).numpy()] = 1
-                    tgt_scale[b, a, j, i, :] = torch.sqrt(2 - truth_w_all[b, ti] * truth_h_all[b, ti] / fsize / fsize)
+########################################################################################################################
+                    tgt_scale[b, a, j, i, :] = 2 - truth_w_all[b, ti] * truth_h_all[b, ti] /(fsize*fsize) 
 
         # loss calculation
         return self.get_losses(output,target,obj_mask,tgt_mask,tgt_scale)
