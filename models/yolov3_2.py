@@ -120,13 +120,16 @@ class YOLOv3(nn.Module):
             output = []
         route_layers = []
         for i, module in enumerate(self.module_list):
-            # Intermediate yolo layers
-            if i in [14,22]:
+            # yolo layers
+            if i in [14, 22, 28]:
                 if train:
+                    # x, *loss_dict = module(x, targets)
+                    # for name, loss in zip(['xy', 'wh', 'conf', 'cls', 'l2'] , loss_dict):
+                    #     self.loss_dict[name] += loss
                     x = module(x, targets)
                 else:
                     x = module(x)
-                    output.append(x)
+                output.append(x)
             else:
                 x = module(x)
 
@@ -141,16 +144,8 @@ class YOLOv3(nn.Module):
                 x = torch.cat((x, route_layers[1]), 1)
             if i == 24:
                 x = torch.cat((x, route_layers[0]), 1)
-            
-            # Final yolo layer
-            if i == 28:
-                if train:
-                    loss = module(x,targets,end=True) 
-                else: 
-                    x = module(x)
-                    output.append(x)
         if train:
-            return loss 
+            return sum(output)
         else:
             return torch.cat(output, 1)
     

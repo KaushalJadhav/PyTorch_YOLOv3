@@ -110,7 +110,7 @@ class YOLOLayer(nn.Module):
         # return loss, loss_xy, loss_wh, loss_obj, loss_cls, loss_l2
         return loss 
 
-    def forward(self, xin,labels=None,end=False):
+    def forward(self, xin,labels=None):
         """
         In this
         Args:
@@ -140,8 +140,6 @@ class YOLOLayer(nn.Module):
 
         if labels is None:  # not training
             pred[..., :4] *= self.stride
-            return pred.contiguous().view(self.batchsize, -1, self.n_ch).data
-        if not end:
             return pred.contiguous().view(self.batchsize, -1, self.n_ch).data
         else :
             return self.forward_losses(fsize,labels,output,pred)
