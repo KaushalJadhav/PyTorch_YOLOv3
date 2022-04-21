@@ -8,6 +8,7 @@ def parse_args():
     parser.add_argument('--cfg', type=str, default='config/yolov3_default.cfg',help='config file.')
     parser.add_argument('--checkpoint',default=None, type=str,help='pytorch checkpoint file path')
     parser.add_argument('--wandb_checkpoint',default=None, type=str,help='path to the checkpoint saved on WandB.')
+    parser.add_argument('--wandb_API_key',default=None, type=str,help='WandB API key for logging onto WandB.')
     return parser.parse_args()
 
 def iscuda(cfg):

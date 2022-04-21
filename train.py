@@ -22,6 +22,9 @@ def main(args):
     YOLOv3 trainer. See README for details.
     """
     
+    # Log onto WandB
+    if args.wandb_API_key is not None:
+        os.environ['WANDB_API_KEY']=args.wandb_API_key
     # Parse config settings
     cfg = load_cfg(args.cfg)
     
@@ -138,6 +141,7 @@ def main(args):
         #                     'val/COCOAP50': ap50,
         #                     'val/COCOAP50_95' : ap50_95
         #                   }, step=iter_i)
+
         # save checkpoint
         if iter_i > 0 and (iter_i % cfg["SAVING"]["CKPT_INTERVAL"] == 0):
             save_ckpt(cfg["SAVING"]["CKPT_DIR"],iter_i,model,optimizer,scheduler)

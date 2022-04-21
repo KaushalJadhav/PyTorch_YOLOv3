@@ -1,3 +1,4 @@
+import subprocess
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
@@ -152,6 +153,9 @@ class YOLOv3(nn.Module):
     def parse_weights(self):
         weights_path = self.cfg['MODEL']['WEIGHTS_PATH']
         if weights_path is not None:
+            if not os.path.exists(weights_path):
+                subprocess.call('./requirements/download_weights.sh')
+            assert os.path.exists(weights_path)
             print("loading darknet weights from ....", weights_path)
             parse_yolo_weights(self,weights_path)
     
