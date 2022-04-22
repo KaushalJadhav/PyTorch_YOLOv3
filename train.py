@@ -1,6 +1,6 @@
 from __future__ import division
 
-from models.yolov3_2 import YOLOv3
+from models.yolov3 import YOLOv3
 from dataset.cocodataset import COCODataset
 from utils.misc import parse_args,iscuda,load_cfg
 from utils.ckpt_utils import load_ckpt,save_ckpt
@@ -87,7 +87,7 @@ def main(args):
 
         if iter_i % cfg["LOGGING"]["LOGGING_INTERVAL"] == 0:
             # logging
-            log(scheduler,model)
+            #log(scheduler,model)
 
             # random resizing
             # if cfg['AUGMENTATION']['RANDRESIZE']:
