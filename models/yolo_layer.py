@@ -68,7 +68,6 @@ class YOLOLayer(nn.Module):
         return pred
     
     def get_output(self,xin):
-        print(xin.shape)
         output = self.conv(xin)
         fsize = output.shape[2]
         output = output.view(self.batchsize, self.n_anchors, self.n_ch, fsize, fsize)
@@ -136,6 +135,7 @@ class YOLOLayer(nn.Module):
             loss_l2 (torch.Tensor): total l2 loss - only for logging.
         """
         self.dtype = torch.cuda.FloatTensor if xin.is_cuda else torch.FloatTensor
+        print(xin.shape)
         output,fsize = self.get_output(xin)
     
         # calculate pred - xywh obj cls
