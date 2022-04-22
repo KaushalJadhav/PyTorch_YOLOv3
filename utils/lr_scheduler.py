@@ -12,7 +12,7 @@ class LambdaLRScheduler():
         steps = eval(self.cfg['SOLVER']['STEPS'])
 
         # Learning rate setup
-        def burnin_schedule(self,i):
+        def burnin_schedule(i):
             if i < burn_in:
                 return pow(i / burn_in, 4)
             elif i < steps[0]:
