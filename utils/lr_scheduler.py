@@ -5,9 +5,9 @@ class LambdaLRScheduler():
         self.scheduler = optim.lr_scheduler.LambdaLR(optimizer,self.burnin_schedule)
         self.iter_state = iter_state
         self.cfg=cfg
-        self.iter_size = cfg['SOLVER']['MAXITER']
-        self.batch_size = cfg['DATA']['BATCHSIZE']
-        self.subdivision = cfg['DATA']['SUBDIVISION']
+        self.iter_size = self.cfg['SOLVER']['MAXITER']
+        self.batch_size = self.cfg['DATA']['BATCHSIZE']
+        self.subdivision = self.cfg['DATA']['SUBDIVISION']
         self.effective_batch_size = self.batch_size*self.subdivision
     
     # Learning rate setup
