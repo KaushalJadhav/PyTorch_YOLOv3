@@ -9,16 +9,16 @@ class LambdaLRScheduler():
         self.batch_size = self.cfg['DATA']['BATCHSIZE']
         self.subdivision = self.cfg['DATA']['SUBDIVISION']
         self.effective_batch_size = self.batch_size*self.subdivision
+        self.burn_in = self.cfg['SOLVER']['BURN_IN']
+        self.steps = eval(self.cfg['SOLVER']['STEPS'])
     
     # Learning rate setup
     def burnin_schedule(self,i):
-        burn_in = self.cfg['SOLVER']['BURN_IN']
-        steps = eval(self.cfg['SOLVER']['STEPS'])
-        if i < burn_in:
-            factor = pow(i / burn_in, 4)
-        elif i < steps[0]:
+        if i < self.burn_in:
+            factor = pow(i / self.burn_in, 4)
+        elif i < self.steps[0]:
             factor = 1.0
-        elif i < steps[1]:
+        elif i < self.steps[1]:
             factor = 0.1
         else:
             factor = 0.01
