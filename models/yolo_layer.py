@@ -109,8 +109,8 @@ class YOLOLayer(nn.Module):
         loss_cls = bce(output[..., 5:], target[..., 5:])
         loss_l2 = self.l2_loss(output, target)
         loss = loss_xy + loss_wh + loss_obj + loss_cls
-        # return loss, loss_xy, loss_wh, loss_obj, loss_cls, loss_l2
-        return loss 
+        return loss, loss_xy, loss_wh, loss_obj, loss_cls, loss_l2
+        # return loss 
 
     def forward(self, xin, labels=None):
         """
