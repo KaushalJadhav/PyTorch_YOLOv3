@@ -68,6 +68,7 @@ class YOLOLayer(nn.Module):
         return pred
     
     def get_output(self,xin):
+        print(xin.shape)
         output = self.conv(xin)
         fsize = output.shape[2]
         output = output.view(self.batchsize, self.n_anchors, self.n_ch, fsize, fsize)
