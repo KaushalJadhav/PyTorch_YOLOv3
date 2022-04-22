@@ -135,7 +135,7 @@ class YOLOLayer(nn.Module):
             loss_l2 (torch.Tensor): total l2 loss - only for logging.
         """
         self.dtype = torch.cuda.FloatTensor if xin.is_cuda else torch.FloatTensor
-        print(xin.shape)
+        print(labels.shape)
         output,fsize = self.get_output(xin)
     
         # calculate pred - xywh obj cls
