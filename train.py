@@ -4,9 +4,9 @@ from models.yolov3 import YOLOv3
 from dataset.cocodataset import COCODataset
 from utils.misc import parse_args,iscuda,load_cfg
 from utils.ckpt_utils import load_ckpt,save_ckpt
-from utils.logging import init_wandb
+from utils.logging import init_wandb,restore_ckpt,log
 from utils.cocoapi_evaluator import COCOAPIEvaluator
-
+from utils.lr_scheduler import LambdaLRScheduler
 import os
 try:
     import wandb 
@@ -43,33 +43,18 @@ def main(args):
     # optimizer setup
     optimizer = optim.SGD(
                            model.get_params(), 
-                           lr=cfg['SOLVER']['LR'] / batch_size / subdivision, 
+                           lr=cfg['SOLVER']['LR'] /effective_batch_size, 
                            momentum=cfg['SOLVER']['MOMENTUM'],
                            dampening=0, 
                            weight_decay=cfg['SOLVER']['DECAY']*effective_batch_size
                          )
 
-    # Learning rate setup
-    def burnin_schedule(i):
-        burn_in = cfg['SOLVER']['BURN_IN']
-        steps = eval(cfg['SOLVER']['STEPS'])
-        if i < burn_in:
-            factor = pow(i / burn_in, 4)
-        elif i < steps[0]:
-            factor = 1.0
-        elif i < steps[1]:
-            factor = 0.1
-        else:
-            factor = 0.01
-        return factor
-    
-    scheduler = optim.lr_scheduler.LambdaLR(optimizer, burnin_schedule)
+    scheduler = LambdaLRScheduler(optimizer,cfg)
 
     if cfg["LOGGING"]["TYPE"].upper() == "WANDB":
         init_wandb(cfg)
     if args.wandb_checkpoint is not None:
-        wandb_checkpoint = wandb.restore(os.path.join(ckpt_dir,args.wandb_checkpoint))
-        ckpt_path = wandb_checkpoint.name
+        ckpt_path = restore_ckpt(os.path.join(ckpt_dir,args.wandb_checkpoint))
     else:
         ckpt_path = args.checkpoint
     model,optimizer,scheduler,iter_state = load_ckpt(ckpt_path,model,optimizer,scheduler)
@@ -97,40 +82,18 @@ def main(args):
             if cfg["LOGGING"]["TYPE"].upper() == "WANDB":
                 wandb.watch(model,criterion=loss,log="all")
             loss.backward()
-
         optimizer.step()
         scheduler.step()
 
-        if iter_i % 10 == 0:
+        if iter_i % cfg["LOGGING"]["LOGGING_INTERVAL"] == 0:
             # logging
-            current_lr = scheduler.get_last_lr()[0] * batch_size * subdivision
-            # print('[Iter %d/%d] [lr %f] '
-            #       '[Losses: xy %f, wh %f, conf %f, cls %f, l2 %f]'
-            #       % (iter_i, iter_size, current_lr,
-            #          model.loss_dict['xy'], model.loss_dict['wh'],
-            #          model.loss_dict['conf'], model.loss_dict['cls'], 
-            #          model.loss_dict['l2']),
-            #       flush=True)
-            print('[Iter %d/%d] [lr %f][Loss %f] '% (iter_i, iter_size, current_lr,loss.item()),flush=True)
-            if cfg["LOGGING"]["TYPE"].upper() == "WANDB":
-                train_loss = {
-                                'XY loss': model.loss_dict['xy'],
-                                'WH loss' : model.loss_dict['wh'],
-                                'Conf loss' : model.loss_dict['conf'],
-                                'Cls loss' : model.loss_dict['cls'],
-                             }
-                wandb.log({
-                            'Sub_Loss': train_loss,
-                            'L2_Loss' : model.loss_dict['l2'],
-                            'Total Loss' : loss.item(), 
-                            'Learning Rate': current_lr,
-                          }, step=iter_i)
+            log(scheduler,model)
 
             # random resizing
-            if cfg['AUGMENTATION']['RANDRESIZE']:
-                dataset.random_resize()
-                dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True,num_workers=cfg['NUM_CPUS'])
-                dataiterator = iter(dataloader)
+            # if cfg['AUGMENTATION']['RANDRESIZE']:
+            #     dataset.random_resize()
+            #     dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True,num_workers=cfg['NUM_CPUS'])
+            #     dataiterator = iter(dataloader)
         
         # COCO evaluation
         # if iter_i % cfg["TEST"]["EVAL_INTERVAL"] == 0 and iter_i > 0:
@@ -147,6 +110,7 @@ def main(args):
             save_ckpt(cfg["SAVING"]["CKPT_DIR"],iter_i,model,optimizer,scheduler)
             if cfg["LOGGING"]["TYPE"].upper() == "WANDB":
                 wandb.save(os.path.join(ckpt_dir, "YOLO"+str(it)+".ckpt"))
+        
     if cfg["LOGGING"]["TYPE"].upper() == "WANDB":
         wandb.finish()
 

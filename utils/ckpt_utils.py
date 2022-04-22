@@ -1,7 +1,9 @@
 import torch
 import os 
 
-def save_ckpt(ckpt_dir,it,model,optimizer,scheduler):
+def save_ckpt(ckpt_dir,model,optimizer,scheduler,it=None):
+    if it is None:
+        it = scheduler.iter_state
     save_dict = {'iter': it,
                  'model_state_dict': model.state_dict(),
                  'optimizer_state_dict': optimizer.state_dict(),
@@ -21,5 +23,6 @@ def load_ckpt(ckpt_path,model,optimizer,scheduler):
             optimizer.load_state_dict(state['optimizer_state_dict'])
             iter_state = state['iter'] + 1
         if 'scheduler_state_dict' in state.keys():
-            scheduler.load_state_dict(state['scheduler_state_dict'])
+            scheduler.load_state_dict(state)
+            scheduler.iter_state = iter_state
     return model,optimizer,scheduler,iter_state

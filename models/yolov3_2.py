@@ -2,11 +2,11 @@ import subprocess
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
-from collections import defaultdict
 
 from models.yolo_layer_2 import YOLOLayer
 from models.resblock import resblock
 from utils.parse_yolo_weights import parse_yolo_weights
+from utils.lossdict import Loss_Dict
 
 class YOLOv3(nn.Module):
     """
@@ -26,8 +26,11 @@ class YOLOv3(nn.Module):
             self.module_list = self.create_yolov3_modules(cfg)
         else:
             raise Exception('Model name {} is not available'.format(cfg['MODEL']['TYPE']))
-        self.parse_weights()
-        # self.loss_dict = defaultdict(float)
+        if self.cfg['MODEL']['LOAD_WEIGHTS']:
+            self.parse_weights()
+        self.loss_dict = defaultdict(float)
+        self.loss_dict = Loss_Dict()
+        self.loss_dict.init(['total','xy', 'wh', 'conf', 'cls', 'l2'])
 
     def add_conv(self,in_ch, out_ch, ksize, stride):
         """
@@ -124,10 +127,8 @@ class YOLOv3(nn.Module):
             # yolo layers
             if i in [14, 22, 28]:
                 if train:
-                    # x, *loss_dict = module(x, targets)
-                    # for name, loss in zip(['xy', 'wh', 'conf', 'cls', 'l2'] , loss_dict):
-                    #     self.loss_dict[name] += loss
-                    x = module(x, targets)
+                    x,loss_xy,loss_wh,loss_obj,loss_cls,loss_l2= module(x, targets)
+                    self.loss_dict.update(losses=[x,loss_xy,loss_wh,loss_obj,loss_cls,loss_l2])
                 else:
                     x = module(x)
                 output.append(x)
@@ -152,12 +153,13 @@ class YOLOv3(nn.Module):
     
     def parse_weights(self):
         weights_path = self.cfg['MODEL']['WEIGHTS_PATH']
-        if weights_path is not None:
-            if not os.path.exists(weights_path):
-                subprocess.call('./requirements/download_weights.sh')
-            assert os.path.exists(weights_path)
-            print("loading darknet weights from ....", weights_path)
-            parse_yolo_weights(self,weights_path)
+        if weights_path is None:
+            subprocess.call('./requirements/download_weights.sh')
+            weights_path = './weights/yolov3.weights'
+            print('Setting path to weights file as-',weights_path)
+        assert os.path.exists(weights_path)
+        print("loading darknet weights from ....", weights_path)
+        parse_yolo_weights(self,weights_path)
     
     def load_state(self,state):
         if 'model_state_dict' in state.keys():

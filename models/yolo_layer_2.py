@@ -48,7 +48,10 @@ class YOLOLayer(nn.Module):
         self.conv = nn.Conv2d(in_channels=in_ch,
                               out_channels=self.n_anchors * (self.n_ch),
                               kernel_size=1, stride=1, padding=0)
-    
+        
+        self.loss_dict = {
+
+        }
     def bce_loss(self,weight=None):
         return nn.BCELoss(weight=weight,size_average=False)
     
@@ -107,8 +110,8 @@ class YOLOLayer(nn.Module):
         loss_cls = obj_mask * bce(output[..., 5:], target[..., 5:])
         loss_l2 = self.l2_loss(output, target)
         loss = loss_xy + loss_wh + loss_obj + loss_cls
-        # return loss, loss_xy, loss_wh, loss_obj, loss_cls, loss_l2
-        return loss 
+        return loss, loss_xy, loss_wh, loss_obj, loss_cls, loss_l2
+ 
 
     def forward(self, xin,labels=None):
         """
