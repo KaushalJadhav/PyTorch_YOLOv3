@@ -85,7 +85,7 @@ def main(args):
         optimizer.step()
         scheduler.step()
 
-        if iter_i % cfg["LOGGING"]["LOGGING_INTERVAL"] == 0:
+        # if iter_i % cfg["LOGGING"]["LOGGING_INTERVAL"] == 0:
             # logging
             #log(scheduler,model)
 
