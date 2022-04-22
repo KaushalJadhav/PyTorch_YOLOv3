@@ -1,6 +1,6 @@
 from __future__ import division
 
-from models.yolov3 import YOLOv3
+from models.yolov3_2 import YOLOv3
 from dataset.cocodataset import COCODataset
 from utils.misc import parse_args,iscuda,load_cfg
 from utils.ckpt_utils import load_ckpt,save_ckpt
