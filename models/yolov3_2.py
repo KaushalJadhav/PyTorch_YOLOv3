@@ -28,7 +28,6 @@ class YOLOv3(nn.Module):
             raise Exception('Model name {} is not available'.format(cfg['MODEL']['TYPE']))
         if self.cfg['MODEL']['LOAD_WEIGHTS']:
             self.parse_weights()
-        self.loss_dict = defaultdict(float)
         self.loss_dict = Loss_Dict()
         self.loss_dict.init(['total','xy', 'wh', 'conf', 'cls', 'l2'])
 
