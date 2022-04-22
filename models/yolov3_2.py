@@ -127,6 +127,7 @@ class YOLOv3(nn.Module):
             # yolo layers
             if i in [14, 22, 28]:
                 if train:
+                    print('ok')
                     x,loss_xy,loss_wh,loss_obj,loss_cls,loss_l2= module(x, targets)
                     self.loss_dict.update(losses=[x,loss_xy,loss_wh,loss_obj,loss_cls,loss_l2])
                 else:
